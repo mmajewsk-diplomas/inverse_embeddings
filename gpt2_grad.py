@@ -7,7 +7,7 @@ from sipit_grad import sipit
 def main():
     # Configuration
     MODEL_NAME = "gpt2"
-    TEXT = "Hi, my name is Mikolaj"
+    TEXT = "Finally, Achilles finds his prey."
     SEED = 42
     
     # Set device and seed
@@ -43,7 +43,7 @@ def main():
         target_hidden_states=target_hidden, 
         tokenizer=tokenizer,
         learning_rate=0.03,
-        num_optimization_steps=1000,
+        num_optimization_steps=700,
         loss_threshold=1e-4,
         verbose=True
     )
