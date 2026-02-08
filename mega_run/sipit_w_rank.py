@@ -10,7 +10,7 @@ def detach_past(past_key_values):
 def sipit(
     model: PreTrainedModel,
     target_hidden_states: torch.Tensor,
-    target_ids: torch.Tensor,
+    target_ids: torch.Tensor,  # <--- NOWY ARGUMENT: Prawdziwe ID tokenów
     tokenizer: PreTrainedTokenizer,
     lr: float = 0.05,
     steps: int = 500,
@@ -31,7 +31,7 @@ def sipit(
 
     for t in range(seq_len):
         target_h = target_hidden_states[t].to(device)
-        true_token_id = target_ids[t].item() 
+        true_token_id = target_ids[t].item() # Pobieramy ID prawdziwego tokena
         
         proxy_emb = torch.zeros((1, 1, model.config.n_embd), device=device, requires_grad=True)
         optimizer = torch.optim.Adam([proxy_emb], lr=lr, weight_decay=reg_weight)
@@ -41,9 +41,11 @@ def sipit(
         vector_history = [] 
         early_stop_step = steps
 
+        # --- OPTYMALIZACJA ---
         for step in range(steps):
             optimizer.zero_grad()
             
+            # Zapisujemy historię wektora co N kroków
             if step % rank_check_interval == 0:
                 vector_history.append((step, proxy_emb.detach().clone()))
 
@@ -64,6 +66,7 @@ def sipit(
             optimizer.step()
             scheduler.step()
 
+        # --- WYSZUKIWANIE KANDYDATA (Na koniec) ---
         with torch.no_grad():
             optimized_vec = proxy_emb.detach().squeeze()
             dists = torch.norm(embedding_matrix - optimized_vec, dim=1)
@@ -72,6 +75,7 @@ def sipit(
         found_token = candidates[0]
         found_rank = 0
 
+        # Sprawdzenie, który kandydat daje najmniejszy błąd na wyjściu
         for rank, cand_id in enumerate(candidates):
             inp = torch.tensor([[cand_id]], device=device)
             with torch.no_grad():
@@ -88,8 +92,9 @@ def sipit(
 
         recovered_ids.append(found_token)
 
+        # --- ANALIZA POST-FACTUM (Tracking Rank) ---
         rank_evolution_winner = []
-        rank_evolution_true = []
+        rank_evolution_true = [] # <--- Tu będziemy zapisywać ranking poprawnego tokena
 
         with torch.no_grad():
             winner_vec = embedding_matrix[found_token]
@@ -98,12 +103,15 @@ def sipit(
             for step_num, hist_vec in vector_history:
                 hist_vec = hist_vec.squeeze()
                 
+                # Obliczamy odległości do wszystkich słów w słowniku
                 dists_t = torch.norm(embedding_matrix - hist_vec, dim=1)
                 
+                # 1. Ranking zwycięzcy (tego, co algorytm wybrał)
                 dist_to_winner = torch.norm(winner_vec - hist_vec).item()
                 rank_at_step_winner = (dists_t < dist_to_winner).sum().item()
                 rank_evolution_winner.append(rank_at_step_winner)
 
+                # 2. Ranking prawdziwego tokena (Ground Truth)
                 dist_to_true = torch.norm(true_vec - hist_vec).item()
                 rank_at_step_true = (dists_t < dist_to_true).sum().item()
                 rank_evolution_true.append(rank_at_step_true)
@@ -117,6 +125,7 @@ def sipit(
             "rank_final": found_rank,
             "loss_history": step_losses,
             
+            # Zapisujemy obie ewolucje
             "rank_evolution_winner": rank_evolution_winner, 
             "rank_evolution_true": rank_evolution_true,
             
@@ -124,6 +133,7 @@ def sipit(
         }
         trajectory_data.append(token_stats)
         
+        # Aktualizacja KV Cache dla następnego tokena
         with torch.no_grad():
             inp_final = torch.tensor([[found_token]], device=device)
             out_final = model(input_ids=inp_final, past_key_values=past_key_values, use_cache=True)
