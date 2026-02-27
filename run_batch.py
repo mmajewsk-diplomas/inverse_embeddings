@@ -28,7 +28,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(args.model)
     model = AutoModelForCausalLM.from_pretrained(args.model, output_hidden_states=True).to(device).eval()
 
-    ds = load_dataset("wikimedia/wikipedia", "20231101.en", split="train", streaming=True)
+    ds = load_dataset("allenai/c4", "en", split="train", streaming=True)
     iterator = iter(ds)
     
     results_summary = []
@@ -38,37 +38,39 @@ def main():
     while processed < args.samples:
         try:
             row = next(iterator)
-            text = row['text'].split('.')[0].strip() + "."
-            if len(text) < 30 or len(text) > 80: continue
+            full_text = row['text']
             
-            inputs = tokenizer(text, return_tensors="pt").to(device)
-            if inputs.input_ids.shape[1] > 20: continue 
-
+            full_tokens = tokenizer.encode(full_text, add_special_tokens=False)
+            
+            if len(full_tokens) < 20: 
+                continue
+                
+            target_token_ids = full_tokens[:15]
+            text = tokenizer.decode(target_token_ids)
+            
+            inputs_ids = torch.tensor([target_token_ids]).to(device)
+            
             with torch.no_grad():
-                out = model(**inputs)
-                target_hidden = out.hidden_states[-1][0]
-
+                out = model(inputs_ids)
+                target_hidden = out.hidden_states[-1][0] 
 
             result = sipit(
                 model=model,
                 target_hidden_states=target_hidden,
-                target_ids=inputs.input_ids[0],
+                target_ids=inputs_ids[0],
                 tokenizer=tokenizer,
                 steps=args.steps,
                 verbose=False
             )
 
-
             sim_ratio = SequenceMatcher(None, text, result['recovered_text']).ratio()
             
-
             sample_id = f"sample_{processed:04d}"
             result['original_text'] = text
             result['similarity'] = sim_ratio
             
             with open(os.path.join(exp_dir, f"{sample_id}.json"), "w") as f:
                 json.dump(result, f)
-
 
             results_summary.append({
                 "id": sample_id,

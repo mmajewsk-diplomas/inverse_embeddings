@@ -31,7 +31,7 @@ def sipit(
 
     for t in range(seq_len):
         target_h = target_hidden_states[t].to(device)
-        true_token_id = target_ids[t].item() 
+        true_token_id = target_ids[t].item()
         
         proxy_emb = torch.zeros((1, 1, model.config.n_embd), device=device, requires_grad=True)
         optimizer = torch.optim.Adam([proxy_emb], lr=lr, weight_decay=reg_weight)
@@ -89,7 +89,7 @@ def sipit(
         recovered_ids.append(found_token)
 
         rank_evolution_winner = []
-        rank_evolution_true = []
+        rank_evolution_true = [] 
 
         with torch.no_grad():
             winner_vec = embedding_matrix[found_token]
@@ -111,11 +111,18 @@ def sipit(
         if verbose:
             print(f"Token {t+1} | True: '{tokenizer.decode([true_token_id])}' | Rec: '{tokenizer.decode([found_token])}'")
 
+        with torch.no_grad():
+            inp_discrete = torch.tensor([[found_token]], device=device)
+            out_discrete = model(input_ids=inp_discrete, past_key_values=past_key_values, use_cache=True, output_hidden_states=True)
+            h_discrete = out_discrete.hidden_states[-1][0, -1, :]
+            discrete_loss = F.mse_loss(h_discrete, target_h).item()
+
         token_stats = {
             "token_str": tokenizer.decode([found_token]),
             "true_token_str": tokenizer.decode([true_token_id]),
             "rank_final": found_rank,
             "loss_history": step_losses,
+            "discrete_loss": discrete_loss,
             
             "rank_evolution_winner": rank_evolution_winner, 
             "rank_evolution_true": rank_evolution_true,
