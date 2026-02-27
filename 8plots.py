@@ -66,11 +66,12 @@ def main():
         
         cumulative_losses = np.cumsum(final_losses)
         
+        ax.set_ylim(0, max(cumulative_losses) * 1.3)
+
         diffs = np.concatenate(([cumulative_losses[0]], np.diff(cumulative_losses)))
         colors = plt.cm.RdYlGn_r(diffs / (np.max(diffs) + 1e-9)) 
 
         bars = ax.bar(range(len(cumulative_losses)), cumulative_losses, color='skyblue', edgecolor='black', alpha=0.7)
-        
         ax.plot(range(len(cumulative_losses)), cumulative_losses, color='darkblue', linestyle='--', alpha=0.5)
 
         ax.set_xticks(range(len(tokens_str)))
@@ -87,7 +88,8 @@ def main():
         )
         
         ax.set_title(info_text, loc='left', fontsize=10, family='monospace', 
-                     bbox=dict(facecolor=title_bg, alpha=1.0, pad=5, edgecolor='gray'))
+                     bbox=dict(facecolor=title_bg, alpha=1.0, pad=5, edgecolor='gray'),
+                     pad=25) 
         
         if len(tokens_str) < 15:
             for idx, rect in enumerate(bars):
@@ -96,7 +98,7 @@ def main():
                         f'{final_losses[idx]:.1e}',
                         ha='center', va='bottom', fontsize=7, rotation=90)
 
-    plt.tight_layout()
+    plt.tight_layout(h_pad=3.0)
     plt.savefig(OUTPUT_FILE, dpi=150)
 
 if __name__ == "__main__":
