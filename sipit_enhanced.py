@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 from typing import List, Tuple, Optional, Union
 from transformers import PreTrainedModel, PreTrainedTokenizer
 
@@ -10,6 +11,23 @@ def detach_past(past_key_values: Optional[Tuple]) -> Optional[Tuple]:
     if past_key_values is None:
         return None
     return tuple(tuple(t.detach() for t in layer) for layer in past_key_values)
+
+import torch
+
+class VectorSpaceModel(torch.nn.Module):
+
+    def __init__(self):
+        super(TinyModel, self).__init__()
+        vocab_size = ...
+        self.linear1 = torch.nn.Linear(vocab_size, vocab_size)
+
+    def forward(self, x):
+        x = self.linear1(x)
+        return x
+
+vsmodel = VectorSpaceModel()
+triplet_loss = nn.TripletMarginLoss(margin=0.2, p=2)
+optimizer = torch.optim.Adam(vsmodel.parameters(), lr=...)
 
 def sipit(
     model: PreTrainedModel,
@@ -58,6 +76,19 @@ def sipit(
             out = model(inputs_embeds=proxy_emb, past_key_values=past_key_values, use_cache=True, output_hidden_states=True)
             h_pred = out.hidden_states[-1][0, -1, :]
             loss = F.mse_loss(h_pred, target_h)
+
+            proxy_emb_copy = proxy_emb.detach().clone()
+            v_pull = vsmodel(proxy_emb_copy)
+            new_h_pred = proxy_emb_copy + v_pull
+            with torch.no_grad():
+                optimized_vec = proxy_emb.copy().detach().squeeze()
+                dists = torch.norm(embedding_matrix - optimized_vec, dim=1)
+                candidates = torch.argsort(dists)[:max_candidates].tolist()
+            second_best_fit_token = ... # if second best is not same as target_h
+            # else first
+            # or simply remove target_h from embedding_matrix and get best
+            triplet_loss = (target_h, new_h_pred, second_best_fit_token)
+
             
             if loss < loss_threshold:
                 break
@@ -74,7 +105,7 @@ def sipit(
 
         # Selection of the closest discrete token
         with torch.no_grad():
-            optimized_vec = proxy_emb.detach().squeeze()
+            optimized_vec = proxy_emb.copy().detach().squeeze()
             dists = torch.norm(embedding_matrix - optimized_vec, dim=1)
             candidates = torch.argsort(dists)[:max_candidates].tolist()
 
