@@ -20,7 +20,7 @@ PROMPTS = [
 
 MODEL_NAME = "gpt2"
 STEPS = 500
-OUTPUT_FILE = "cumulative_loss_analysis.png"
+OUTPUT_FILE = "cumulative_loss_analysis_2.png"
 
 def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -66,7 +66,7 @@ def main():
         
         cumulative_losses = np.cumsum(final_losses)
         
-        ax.set_ylim(0, max(cumulative_losses) * 1.3)
+        ax.set_ylim(0, max(final_losses) * 1.3)
 
         diffs = np.concatenate(([cumulative_losses[0]], np.diff(cumulative_losses)))
         colors = plt.cm.RdYlGn_r(diffs / (np.max(diffs) + 1e-9)) 
