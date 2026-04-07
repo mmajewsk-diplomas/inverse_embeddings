@@ -5,7 +5,7 @@ import json
 import pandas as pd
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from datasets import load_dataset
-from sipit_w_rank import sipit
+from sipit_w_rank_3 import sipit
 from datetime import datetime
 from difflib import SequenceMatcher
 from tqdm import tqdm

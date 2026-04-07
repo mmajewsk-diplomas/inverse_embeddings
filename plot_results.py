@@ -27,6 +27,7 @@ def generate_plot(json_path):
     rank_evo_winner = [t['rank_evolution_winner'] for t in trajectory]
     rank_evo_true = [t['rank_evolution_true'] for t in trajectory]
     rank_steps = [t['rank_evolution_steps'] for t in trajectory]
+    banned_counts = [t.get('banned_tokens_count', 0) for t in trajectory]
     
     fig, (ax1, ax3, ax_text) = plt.subplots(
     3, 1,
@@ -66,7 +67,7 @@ def generate_plot(json_path):
         )
 
         solid_handles.append(line_solid)
-        solid_labels.append(f"T{i}: {lbl}")
+        solid_labels.append(f"T{i}: {lbl} | banned={banned_counts[i]}")
 
         line_dashed, = ax3.plot(
             r_steps,

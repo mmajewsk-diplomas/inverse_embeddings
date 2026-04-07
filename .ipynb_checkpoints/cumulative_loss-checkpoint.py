@@ -5,6 +5,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from itertools import zip_longest
+from matplotlib.ticker import MultipleLocator
 
 def compute_mean_curve(curves):
     if not curves:
@@ -82,7 +83,9 @@ def generate_cumulative_loss_plot(results_dir, output_file="cumulative_loss_plot
     plt.yscale('log')
 
     ax = plt.gca()
-    ax.xaxis.get_major_locator().set_params(integer=True)
+    
+    # Wymuszenie znaczników na osi X dokładnie co 1
+    ax.xaxis.set_major_locator(MultipleLocator(1))
 
     handles, labels = ax.get_legend_handles_labels()
     if handles:

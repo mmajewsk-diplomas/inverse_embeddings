@@ -5,7 +5,7 @@ import json
 import pandas as pd
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from datasets import load_dataset
-from sipit_w_rank import sipit
+from sipit_w_rank_2 import sipit
 from datetime import datetime
 from difflib import SequenceMatcher
 from tqdm import tqdm
@@ -46,7 +46,7 @@ def main():
             if len(full_tokens) < 20: 
                 continue
                 
-            target_token_ids = full_tokens[:15]
+            target_token_ids = full_tokens[:3]
             text = tokenizer.decode(target_token_ids)
             
             inputs_ids = torch.tensor([target_token_ids]).to(device)
