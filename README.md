@@ -2,13 +2,45 @@
 
 This repo is an implementation of "Language Models are Injective and Hence Invertible" for GPT-2. It demonstrates a privacy attack/interpretability method where input tokens are reconstructed by optimizing a proxy embedding vector via gradient descent to match target hidden states. (https://arxiv.org/abs/2510.15511)
 
+## Compatibility
+
+The code in this repository works with `transformers==4.57.3`.
+The only exception is `sipit_ref` (`src/scripts/run_batch_sipit_ref.py`), which requires the setup described in the linked SIPIT repository.
+
 ## Usage
 
 Run the main script to demonstrate the inversion process on a sample sentence:
 
 ```bash
-python gpt2_grad.py
+python -m src.scripts.gpt2_grad
 ```
+
+## SIPIT variants (`src/sipit`)
+
+Short overview of implemented algorithm variants:
+
+- `sipit_grad.py` - baseline gradient inversion (optimize continuous proxy embedding, then verify nearest discrete candidates).
+- `sipit_w_rank.py` - baseline + rank trajectory diagnostics during optimization.
+- `sipit_w_rank_SGD.py` - SGD-based variant with periodic projection to nearest tokens.
+- `sipit_w_rank_time_mes.py` - rank-aware variant with runtime measurements (`per_token_times`, `total_time_s`).
+- `sipit3.py` - speed-oriented variant with optimized L2 distance computation and banned-candidate filtering.
+
+## Batch run (`run_batch.py`)
+
+Run batched SIPIT evaluation on C4 samples:
+
+```bash
+python -m src.scripts.run_batch \
+  --model openai-community/gpt2 \
+  --samples 10 \
+  --steps 1000 \
+  --metric l1 \
+  --out_dir results/batch
+```
+
+Outputs are written to:
+- `results/batch/<model>_<timestamp>/summary.csv`
+- `results/batch/<model>_<timestamp>/sample_*.json`
 
 ## SIPIT Reference Batch
 

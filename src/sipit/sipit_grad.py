@@ -1,15 +1,28 @@
 import torch
 import torch.nn.functional as F
-from typing import List, Tuple, Optional, Union
+from typing import Any, List, Optional, Tuple, Union
 from transformers import PreTrainedModel, PreTrainedTokenizer
 
-def detach_past(past_key_values: Optional[Tuple]) -> Optional[Tuple]:
+def _detach_cache_entry(cache_entry: Any) -> Any:
+    if cache_entry is None:
+        return None
+    if isinstance(cache_entry, torch.Tensor):
+        return cache_entry.detach()
+    if isinstance(cache_entry, tuple):
+        return tuple(_detach_cache_entry(item) for item in cache_entry)
+    if isinstance(cache_entry, list):
+        return [_detach_cache_entry(item) for item in cache_entry]
+    return cache_entry
+
+def detach_past(past_key_values: Optional[Any]) -> Optional[Any]:
     """
     Detaches past key values from the computation graph.
     """
     if past_key_values is None:
         return None
-    return tuple(tuple(t.detach() for t in layer) for layer in past_key_values)
+    if hasattr(past_key_values, "to_legacy_cache"):
+        past_key_values = past_key_values.to_legacy_cache()
+    return _detach_cache_entry(past_key_values)
 
 def sipit(
     model: PreTrainedModel,
@@ -79,6 +92,7 @@ def sipit(
             candidates = torch.argsort(dists)[:max_candidates].tolist()
 
         found_token = None
+        found_rank = -1
 
         # Verify candidates
         for i, cand_id in enumerate(candidates):
