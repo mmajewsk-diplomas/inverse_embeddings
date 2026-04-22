@@ -10,6 +10,38 @@ Run the main script to demonstrate the inversion process on a sample sentence:
 python gpt2_grad.py
 ```
 
+## SIPIT Reference Batch
+
+`src/scripts/run_batch_sipit_ref.py` uses the reference implementation from the https://github.com/giorgosnikolaou/SIPIT/blob/master/src/algorithm/SIPIT.py.
+
+Expected directory layout:
+
+```text
+<parent_dir>/
+  ml_sec_inverse/
+  SIPIT/
+```
+
+By default, the script looks for SIPIT at `../SIPIT` (relative to `ml_sec_inverse`).  
+If your layout is different, pass `--sipit_dir /path/to/SIPIT`.
+Example run for 2 prompts/samples from C4:
+
+```bash
+python src/scripts/run_batch_sipit_ref.py \
+  --model openai-community/gpt2 \
+  --samples 2 \
+  --tokens 15 \
+  --layer_idx -1 \
+  --step_size 1.0 \
+  --precision 32 \
+  --out_dir results_batch \
+  --seed 8
+```
+
+Outputs are written to:
+- `results_batch/sipit_ref_<model>_<timestamp>/summary.csv`
+- `results_batch/sipit_ref_<model>_<timestamp>/sample_*.json`
+
 ## Demo
 
 Given only the **final layer hidden states** of GPT-2, the algorithm recovers the text token-by-token.

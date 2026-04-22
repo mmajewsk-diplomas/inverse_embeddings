@@ -4,8 +4,6 @@ import os
 import json
 import gc
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'SIPIT'))
-
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 import transformers
 transformers.logging.set_verbosity_error()
@@ -17,45 +15,79 @@ from difflib import SequenceMatcher
 from tqdm import tqdm
 from datetime import datetime
 
-from src.utils.model import setup
-from src.algorithm.SIPIT import SIPIT as _SIPIT
+def default_sipit_dir():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
+    return os.path.abspath(os.path.join(repo_root, "..", "SIPIT"))
 
 
-class SIPITWithRecovery(_SIPIT):
-    """Thin wrapper that also exposes recovered token ids."""
-
-    def inversion_attack(self, *, input_ids, model, tokenizer, layer_idx,
-                         step_size, seed=8, **kwargs):
-        from src.utils.utils import set_seed
-        set_seed(seed)
-
-        new_input_ids = (
-            torch.cat([
-                torch.tensor([self.special_start_token_id],
-                             dtype=torch.long, device=input_ids.device),
-                input_ids
-            ], dim=0)
-            if self.special_start_token_id is not None
-            else input_ids
+def configure_sipit_path(sipit_dir: str):
+    sipit_src = os.path.join(sipit_dir, "src")
+    sipit_algo = os.path.join(sipit_src, "algorithm", "SIPIT.py")
+    if not os.path.isfile(sipit_algo):
+        raise FileNotFoundError(
+            "Reference SIPIT not found. "
+            f"Expected file: {sipit_algo}. "
+            "Set --sipit_dir to the SIPIT repository directory (containing src)."
         )
+    if sipit_dir not in sys.path:
+        sys.path.insert(0, sipit_dir)
 
-        target_hidden_states = self.target_extraction_fn(
-            new_input_ids, model, layer_idx)
-        start_from = new_input_ids.size(0) - input_ids.size(0)
 
-        result = self.find_prompt(
-            model=model, tokenizer=tokenizer, layer_idx=layer_idx,
-            target_hidden_states=target_hidden_states[start_from:],
-            step_size=step_size, **kwargs)
+def get_sipit_components():
+    try:
+        from src.utils.model import setup  # type: ignore[reportMissingImports]
+        from src.algorithm.SIPIT import SIPIT as _SIPIT  # type: ignore[reportMissingImports]
+    except ModuleNotFoundError as exc:
+        missing = getattr(exc, "name", None) or str(exc)
+        raise ModuleNotFoundError(
+            "Missing dependency required by external SIPIT: "
+            f"'{missing}'.\n"
+            "Install it in the same interpreter used to run this script:\n"
+            f"  {sys.executable} -m pip install {missing}\n"
+            "Quick verification:\n"
+            f"  {sys.executable} -c \"import {missing}; print({missing}.__file__)\""
+        ) from exc
 
-        inversion_time, discovered_ids, timesteps, times = result
+    class SIPITWithRecovery(_SIPIT):
+        """Thin wrapper that also exposes recovered token ids."""
 
-        if inversion_time is None:
-            return False, None, None, None, None
+        def inversion_attack(self, *, input_ids, model, tokenizer, layer_idx,
+                             step_size, seed=8, **kwargs):
+            from src.utils.utils import set_seed  # type: ignore[reportMissingImports]
+            set_seed(seed)
+            model_device = model.get_input_embeddings().weight.device
+            input_ids = input_ids.to(model_device)
 
-        match = all(x == y for x, y in
-                    zip(input_ids.tolist(), discovered_ids[start_from:]))
-        return match, inversion_time, timesteps, times, discovered_ids[start_from:]
+            new_input_ids = (
+                torch.cat([
+                    torch.tensor([self.special_start_token_id],
+                                 dtype=torch.long, device=model_device),
+                    input_ids
+                ], dim=0)
+                if self.special_start_token_id is not None
+                else input_ids
+            )
+
+            target_hidden_states = self.target_extraction_fn(
+                new_input_ids, model, layer_idx)
+            start_from = new_input_ids.size(0) - input_ids.size(0)
+
+            result = self.find_prompt(
+                model=model, tokenizer=tokenizer, layer_idx=layer_idx,
+                target_hidden_states=target_hidden_states[start_from:],
+                step_size=step_size, **kwargs)
+
+            inversion_time, discovered_ids, timesteps, times = result
+
+            if inversion_time is None:
+                return False, None, None, None, None
+
+            match = all(x == y for x, y in
+                        zip(input_ids.tolist(), discovered_ids[start_from:]))
+            return match, inversion_time, timesteps, times, discovered_ids[start_from:]
+
+    return setup, SIPITWithRecovery
 
 
 def parse_args():
@@ -70,11 +102,19 @@ def parse_args():
                         choices=[4, 8, 16, 32])
     parser.add_argument("--out_dir", type=str, default="results_batch")
     parser.add_argument("--seed", type=int, default=8)
+    parser.add_argument(
+        "--sipit_dir",
+        type=str,
+        default=default_sipit_dir(),
+        help="Path to external SIPIT repository (expects src/algorithm/SIPIT.py).",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    configure_sipit_path(os.path.abspath(args.sipit_dir))
+    setup, SIPITWithRecovery = get_sipit_components()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     model_short = args.model.split('/')[-1]
     exp_dir = os.path.join(
