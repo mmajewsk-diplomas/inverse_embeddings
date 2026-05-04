@@ -42,6 +42,16 @@ Outputs are written to:
 - `results/batch/<model>_<timestamp>/summary.csv`
 - `results/batch/<model>_<timestamp>/sample_*.json`
 
+## Athena / supercomputer example (`src/athena`)
+
+The `src/athena` directory contains an example setup for running the experiment on a supercomputer (including a SLURM submission script).
+
+Example submission:
+
+```bash
+sbatch src/athena/submit_athena.slurm
+```
+
 ## SIPIT Reference Batch
 
 `src/scripts/run_batch_sipit_ref.py` uses the reference implementation from the https://github.com/giorgosnikolaou/SIPIT/blob/master/src/algorithm/SIPIT.py.
