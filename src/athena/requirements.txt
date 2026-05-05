@@ -1,0 +1,8 @@
+torch==2.0.0+cu118 --index-url https://download.pytorch.org/whl/cu118
+transformers
+numpy
+pandas
+matplotlib
+scipy
+scikit-learn
+datasets
